@@ -18,7 +18,7 @@ module.exports = async (req, res) => {
   }
 
   const googleScriptUrl =
-    'https://script.google.com/macros/s/AKfycbwPGdWaaVuE_Rdrvtgfj0u-_ewJ00yFyqStVGU9d5_TQvTPxTJP-TS7GEWYT4dqgH3QHQ/exec?username=' +
+    'https://script.google.com/macros/s/AKfycbxhlbiXg7y_GaLTdN3Xu_wO5VGPiEEFRg0nr370iCac7dzV1GAzifXqLdlKOTYdFSzBgg/exec?username=' +
     encodeURIComponent(username);
 
   try {
