@@ -8,63 +8,67 @@ module.exports = async (req, res) => {
     return res.status(200).end();
   }
 
-  const { username } = req.query;
+  const username = String(req.query.username || '').trim();
 
   if (!username) {
     return res.status(400).json({
       found: false,
-      error: 'Missing required query parameter: username'
+      error: 'Missing username'
     });
   }
 
-  const googleScriptUrl = `https://script.google.com/macros/s/AKfycbwPGdWaaVuE_Rdrvtgfj0u-_ewJ00yFyqStVGU9d5_TQvTPxTJP-TS7GEWYT4dqgH3QHQ/exec?username=${encodeURIComponent(username)}`;
+  const googleScriptUrl =
+    'https://script.google.com/macros/s/AKfycbwPGdWaaVuE_Rdrvtgfj0u-_ewJ00yFyqStVGU9d5_TQvTPxTJP-TS7GEWYT4dqgH3QHQ/exec?username=' +
+    encodeURIComponent(username);
 
   try {
     const response = await fetch(googleScriptUrl, {
-      redirect: 'follow',
-      headers: { 'Accept': 'application/json' }
+      redirect: 'follow'
     });
 
-    const rawText = await response.text();
+    const text = await response.text();
+    const json = JSON.parse(text);
 
-    // Catch HTML error pages from Google
-    if (rawText.trim().startsWith('<')) {
-      return res.status(502).json({
-        found: false,
-        error: 'Google Apps Script returned HTML instead of JSON. Ensure deployment access is set to Anyone and Execute as Me.'
-      });
-    }
-
-    const json = JSON.parse(rawText);
-
-    // Return ALL punishments for the requested username
-    if (json.success && Array.isArray(json.data)) {
+    if (!json.success) {
       return res.status(200).json({
-        found: json.data.length > 0,
+        found: false,
         user: username,
-        count: json.data.length,
-        punishments: json.data.map(punishment => ({
-          user: punishment.user || "N/A",
-          dateIssued: punishment.dateIssued || "N/A",
-          agency: punishment.agency || "N/A",
-          status: punishment.status || "N/A",
-          endDate: punishment.endDate || "N/A"
-        }))
+        count: 0,
+        punishments: [],
+        message: json.message || json.error || 'No records found'
       });
     }
+
+    // Support both old single-record and new multiple-record formats
+    let records = Array.isArray(json.data)
+      ? json.data
+      : json.data
+        ? [json.data]
+        : [];
+
+    // Only retain records belonging to the requested username
+    records = records.filter(record =>
+      String(record.user || '').trim().toLowerCase() ===
+      username.toLowerCase()
+    );
 
     return res.status(200).json({
-      found: false,
+      found: records.length > 0,
       user: username,
-      count: 0,
-      punishments: [],
-      message: "User not found in Punishment History."
+      count: records.length,
+      punishments: records.map(record => ({
+        user: record.user || 'N/A',
+        dateIssued: record.dateIssued || 'N/A',
+        agency: record.agency || 'N/A',
+        status: record.status || 'N/A',
+        endDate: record.endDate || 'N/A'
+      }))
     });
 
   } catch (error) {
-    return res.status(500).json({
+    return res.status(502).json({
       found: false,
-      error: 'Failed to parse endpoint response',
+      error: 'Google Apps Script request failed',
       details: error.message
     });
   }
